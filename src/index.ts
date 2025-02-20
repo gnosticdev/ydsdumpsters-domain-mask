@@ -398,7 +398,7 @@ app.all('*', async (c) => {
 
 					if (newText !== txt.text) {
 						txt.replace(newText, { html: true })
-						console.log('[script text] URL replaced in script')
+						console.log('[script text] ', newText)
 					}
 				},
 			})
@@ -425,19 +425,15 @@ app.all('*', async (c) => {
 			})
 			.on('noscript', {
 				text: (txt) => {
-					const newText = txt.text.replaceAll(
-						`${maskedURL.protocol}//${maskedURL.hostname}`,
-						`${requestURL.protocol}//${requestURL.host}`,
-					)
+					const newText = txt.text
+						.replaceAll(
+							`${maskedURL.protocol}//${maskedURL.hostname}`,
+							`${requestURL.protocol}//${requestURL.host}`,
+						)
+						.replaceAll(maskedURL.hostname, requestURL.host)
 					if (newText !== txt.text) {
 						txt.replace(newText, { html: false })
 					}
-				},
-			})
-			.on('script[type="application/ld+json"]', {
-				// just remove these
-				element: (el) => {
-					el.remove()
 				},
 			})
 
