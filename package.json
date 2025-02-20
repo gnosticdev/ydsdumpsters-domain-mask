@@ -1,7 +1,7 @@
 {
 	"name": "domain-mask",
 	"scripts": {
-		"dev": "wrangler dev",
+		"dev": "bun run typegen && wrangler dev --env development",
 		"deploy": "wrangler deploy --minify",
 		"typegen": "wrangler types --env-interface CloudflareBindings"
 	},

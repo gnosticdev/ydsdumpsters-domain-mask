@@ -1,34 +1,37 @@
 import type { Context } from 'hono'
 import { cache } from 'hono/cache'
 import { cors } from 'hono/cors'
-import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
-import { appendTrailingSlash } from 'hono/trailing-slash'
 import type { StatusCode } from 'hono/utils/http-status'
+import kleur from 'kleur'
 import { factory } from './utils'
 
-type AllowedHosts = CloudflareBindings['ALLOWED_DOMAINS'][number]
 const app = factory.createApp()
 
 app.use(
 	'*',
 	logger(),
-	appendTrailingSlash(),
 	cors({
 		origin: (_origin, c: Context<{ Bindings: CloudflareBindings }>) =>
-			c.env.ALLOWED_DOMAINS.includes(_origin as AllowedHosts) ? _origin : null,
+			c.env.ALLOWED_DOMAINS.includes(_origin as never) ? _origin : null,
 	}),
-	csrf({
-		origin: (origin, c: Context<{ Bindings: CloudflareBindings }>) =>
-			c.env.ALLOWED_DOMAINS.includes(origin as AllowedHosts),
-	}),
-	cache({
-		cacheName: 'mask-cache',
-		wait: true,
-		cacheControl: 'public, max-age=3600',
-	}),
+	// csrf({
+	// 	origin: (origin, c: Context<{ Bindings: CloudflareBindings }>) =>
+	// 		c.env.ALLOWED_DOMAINS.includes(origin as never),
+	// }),
 	prettyJSON(),
+	(c, next) => {
+		if (c.env.ENVIRONMENT === 'development') {
+			return next()
+		}
+
+		return cache({
+			cacheName: 'mask-cache',
+			wait: true,
+			cacheControl: 'public, max-age=3600',
+		})(c, next)
+	},
 )
 
 app.onError((err, c) => {
@@ -92,7 +95,7 @@ app.all('*', async (c) => {
 	const requestURL = new URL(c.req.url)
 
 	console.log('request from ', requestURL.href)
-	if (!c.env.ALLOWED_DOMAINS.includes(requestURL.hostname as AllowedHosts)) {
+	if (!c.env.ALLOWED_DOMAINS.includes(requestURL.hostname as never)) {
 		return c.text('Not allowed', 403)
 	}
 
@@ -149,15 +152,26 @@ app.all('*', async (c) => {
 		}
 
 		// handle js and replace the src with the requestURL
-		if (contentType?.includes('text/javascript')) {
+		if (
+			contentType?.includes('text/javascript') ||
+			contentType?.includes('application/javascript')
+		) {
+			console.log(kleur.bgYellow(kleur.black('[js]')), maskResponse.url)
 			const jsText = await maskResponse.text()
 			// replace all occurences of the requestURL with the maskURL
-			const processedJs = jsText.replace(
-				new RegExp(requestURL.hostname, 'g'),
+			const processedJs = jsText.replaceAll(
 				maskedURL.hostname,
+				requestURL.hostname,
 			)
 
 			return c.newResponse(processedJs, {
+				status: maskResponse.status as StatusCode,
+				headers: Object.fromEntries(maskResponse.headers.entries()),
+			})
+		}
+
+		if (contentType?.includes('image/')) {
+			return c.newResponse(maskResponse.body, {
 				status: maskResponse.status as StatusCode,
 				headers: Object.fromEntries(maskResponse.headers.entries()),
 			})
@@ -179,43 +193,47 @@ app.all('*', async (c) => {
 			.on('*', {
 				element: (el) => {
 					// Handle href and src attributes
-					for (const attr of ['href', 'src', 'content']) {
+					for (const attr of [
+						'href',
+
+						'content',
+					] as const) {
 						const value = el.getAttribute(attr)
-						if (value) {
-							const newValue = transformUrl(value, maskedURL, requestURL)
-							if (newValue !== value) {
-								el.setAttribute(attr, newValue)
-							}
+						if (!value?.includes(maskedURL.hostname)) continue
+
+						const newValue = transformUrl(value, maskedURL, requestURL)
+						if (newValue !== value) {
+							el.setAttribute(attr, newValue)
 						}
-					}
-				},
-				text: (txt) => {
-					if (requestURL.hostname === 'localhost') {
-						txt.text.replace(new RegExp(maskedURL.host, 'g'), requestURL.host)
+
+						console.log(kleur.bold(kleur.yellow(`[${attr}]`)), value, newValue)
 					}
 				},
 			})
 			.on('img', {
 				element: (el) => {
-					const src = el.getAttribute('src')
-					if (src) {
-						try {
-							const absoluteUrl = src.startsWith('http')
-								? src
-								: new URL(src, maskedURL.toString()).toString()
-							if (absoluteUrl.includes(maskedURL.hostname)) {
-								const newSrc = new URL(absoluteUrl)
-								newSrc.hostname = requestURL.hostname
-								// also make sure port and porotocol are updated for localhost
-								if (requestURL.hostname === 'localhost') {
-									newSrc.protocol = requestURL.protocol
-									newSrc.port = requestURL.port
-								}
-								console.log(`updated src from ${src} to ${newSrc}`)
-								el.setAttribute('src', newSrc.toString())
-							}
-						} catch (e) {
-							console.error('Error processing img src:', src, e)
+					for (const attr of [
+						'src',
+						'srcset',
+						'data-src',
+						'data-srcset',
+					] as const) {
+						const value = el.getAttribute(attr)
+						if (!value?.includes(maskedURL.hostname)) continue
+
+						let newValue = value
+
+						if (attr === 'srcset') {
+							newValue = value.replaceAll(
+								`${maskedURL.protocol}//${maskedURL.hostname}`,
+								`${requestURL.protocol}//${requestURL.host}`,
+							)
+						} else {
+							newValue = transformUrl(value, maskedURL, requestURL)
+						}
+
+						if (newValue !== value) {
+							el.setAttribute(attr, newValue)
 						}
 					}
 				},
@@ -258,6 +276,47 @@ app.all('*', async (c) => {
 					}
 				},
 			})
+
+			.on('script', {
+				element: (el) => {
+					const src = el.getAttribute('src')
+					if (src?.includes(maskedURL.hostname)) {
+						const newValue = transformUrl(src, maskedURL, requestURL)
+						if (newValue !== src) {
+							el.setAttribute('src', newValue)
+						}
+					}
+				},
+				text: (txt) => {
+					const maskedPattern = maskedURL.hostname.replace(/\./g, '\\.')
+
+					// Patterns to match URLs with and without trailing slash
+					const patterns = [
+						new RegExp(`https?://${maskedPattern}/?`, 'g'), // Normal URL
+						new RegExp(`https?:\\\\/\\\\/${maskedPattern}\\\\/?`, 'g'), // Escaped URL
+						new RegExp(maskedPattern, 'g'), // Only the hostname
+					]
+
+					let newText = txt.text
+
+					for (const pattern of patterns) {
+						newText = newText.replace(pattern, (match) => {
+							const isEscaped = match.includes('\\/')
+							const protocol = requestURL.protocol.replace(':', '')
+							const newURL = `${protocol}://${requestURL.host}/` // Always add trailing slash
+
+							return isEscaped
+								? newURL.replace(/\//g, '\\/') // Convert `/` to `\/` for escaping
+								: newURL
+						})
+					}
+
+					if (newText !== txt.text) {
+						txt.replace(newText, { html: true })
+						console.log('[script text] URL replaced in script')
+					}
+				},
+			})
 			.on('link', {
 				element: (el) => {
 					// Handle canonical URLs and other link tags
@@ -265,8 +324,38 @@ app.all('*', async (c) => {
 					if (rel === 'canonical') {
 						el.setAttribute('href', requestURL.toString())
 					}
+					const href = el.getAttribute('href')
+					if (href?.includes(maskedURL.hostname)) {
+						const decoded = decodeURIComponent(href)
+						console.log(kleur.cyan('decoded URL'), decoded)
+						el.setAttribute(
+							'href',
+							decoded.replaceAll(
+								`${maskedURL.protocol}//${maskedURL.hostname}`,
+								`${requestURL.protocol}//${requestURL.host}`,
+							),
+						)
+					}
 				},
 			})
+			.on('noscript', {
+				text: (txt) => {
+					const newText = txt.text.replaceAll(
+						`${maskedURL.protocol}//${maskedURL.hostname}`,
+						`${requestURL.protocol}//${requestURL.host}`,
+					)
+					if (newText !== txt.text) {
+						txt.replace(newText, { html: false })
+					}
+				},
+			})
+			.on('script[type="application/ld+json"]', {
+				// just remove these
+				element: (el) => {
+					el.remove()
+				},
+			})
+
 			.transform(c.html(html))
 	} catch (error) {
 		console.error('Proxy error:', error)

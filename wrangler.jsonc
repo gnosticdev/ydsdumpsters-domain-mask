@@ -28,8 +28,18 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
 	"vars": {
-		"ALLOWED_DOMAINS": ["yellowdumpsterservice.com", "localhost"],
-		"MASK_DOMAIN": "https://www.rentyellowdumpsters.com"
+		"ALLOWED_DOMAINS": ["yellowdumpsterservice.com"],
+		"MASK_DOMAIN": "https://www.rentyellowdumpsters.com",
+		"ENVIRONMENT": "production"
+	},
+	"env": {
+		"development": {
+			"vars": {
+				"ALLOWED_DOMAINS": ["localhost"],
+				"MASK_DOMAIN": "https://www.rentyellowdumpsters.com",
+				"ENVIRONMENT": "development"
+			}
+		}
 	}
 	/**
 	 * Note: Use secrets to store sensitive data.
