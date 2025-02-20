@@ -38,6 +38,10 @@ app.onError((err, c) => {
 	console.error(err)
 	return c.text('Woops - something went wrong', 500)
 })
+app.notFound((c) => {
+	console.error('not found', c.req.url)
+	return c.text('Not found', 404)
+})
 
 // block robots
 app.get('/robots.txt', (c) => {
@@ -64,11 +68,13 @@ function transformUrl(
 		}
 
 		// Convert to absolute URL
+		console.log(
+			kleur.bgGreen(kleur.bold(kleur.blue('transforming originalUrl'))),
+			originalUrl,
+		)
 		const absoluteUrl = originalUrl.startsWith('/')
-			? `https://${maskedURL.hostname}${originalUrl}`
-			: originalUrl.startsWith('http')
-				? originalUrl
-				: new URL(originalUrl, maskedURL.toString()).toString()
+			? `${maskedURL.protocol}://${maskedURL.hostname}${originalUrl}`
+			: new URL(originalUrl).toString()
 
 		// Only transform URLs that contain our masked domain
 		if (absoluteUrl.includes(maskedURL.hostname)) {
@@ -107,33 +113,65 @@ app.all('*', async (c) => {
 	maskedURL.pathname = requestURL.pathname
 	maskedURL.search = requestURL.search
 
-	console.log('maskUrl', maskedURL)
-
 	try {
-		/**
-		 * The response from the masked url
-		 */
+		// Get the request body if it exists
+		let body: BodyInit | null = null
+		if (['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
+			body = await c.req.raw.clone().arrayBuffer()
+		}
+
+		// Forward all original headers except host
+		const headers = new Headers()
+		for (const [key, value] of c.req.raw.headers.entries()) {
+			if (key.toLowerCase() !== 'host') {
+				headers.set(key, value)
+			}
+		}
+
+		// Set the correct host and other required headers
+		headers.set('Host', maskedURL.host)
+		headers.set('Origin', maskedURL.origin)
+		headers.set('Referer', maskedURL.origin)
+
 		const maskResponse = await fetch(maskedURL, {
-			headers: {
-				'User-Agent':
-					'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-				Connection: 'keep-alive',
-				Referer: maskedURL.origin,
-				Host: maskedURL.host,
-			},
-			redirect: 'follow',
 			method: c.req.method,
+			headers,
+			body,
+			redirect: 'follow',
 		})
+
+		// For PHP responses that might return JSON or other content types
+		const contentType = maskResponse.headers.get('content-type')
+
+		// Handle JSON responses from PHP
+		if (contentType?.includes('application/json')) {
+			const jsonText = await maskResponse.text()
+			const processedJson = jsonText
+				.replaceAll(
+					`${maskedURL.protocol}//${maskedURL.hostname}`,
+					`${requestURL.protocol}//${requestURL.host}`,
+				)
+				.replaceAll(maskedURL.hostname, requestURL.hostname)
+
+			return c.newResponse(processedJson, {
+				status: maskResponse.status as StatusCode,
+				headers: Object.fromEntries(maskResponse.headers.entries()),
+			})
+		}
 
 		// send errors back to the origin server
 		if (!maskResponse.ok) {
 			c.executionCtx.passThroughOnException()
+			const text = await maskResponse.text()
+			console.error(
+				maskResponse.headers.get('content-type'),
+				text.substring(0, 1000),
+			)
 			throw new Error('Failed to fetch content from mask', {
 				cause: maskResponse.statusText,
 			})
 		}
 
-		const contentType = maskResponse.headers.get('content-type')
 		// Handle CSS files specifically
 		if (contentType?.includes('text/css')) {
 			const cssText = await maskResponse.text()
@@ -152,17 +190,26 @@ app.all('*', async (c) => {
 		}
 
 		// handle js and replace the src with the requestURL
-		if (
-			contentType?.includes('text/javascript') ||
-			contentType?.includes('application/javascript')
-		) {
-			console.log(kleur.bgYellow(kleur.black('[js]')), maskResponse.url)
+		if (contentType?.includes('javascript')) {
 			const jsText = await maskResponse.text()
-			// replace all occurences of the requestURL with the maskURL
-			const processedJs = jsText.replaceAll(
-				maskedURL.hostname,
-				requestURL.hostname,
-			)
+			// replace all occurences of the maskedURL with the requestURL
+			let processedJs = jsText
+
+			// first check for full url, then check for hostname only
+			if (
+				processedJs.includes(`${maskedURL.protocol}//${maskedURL.hostname}`)
+			) {
+				processedJs = processedJs.replaceAll(
+					`${maskedURL.protocol}//${maskedURL.hostname}`,
+					`${requestURL.protocol}//${requestURL.host}`,
+				)
+			}
+			if (processedJs.includes(maskedURL.hostname)) {
+				processedJs = processedJs.replaceAll(
+					maskedURL.hostname,
+					requestURL.hostname,
+				)
+			}
 
 			return c.newResponse(processedJs, {
 				status: maskResponse.status as StatusCode,
@@ -171,6 +218,10 @@ app.all('*', async (c) => {
 		}
 
 		if (contentType?.includes('image/')) {
+			console.log(
+				kleur.bgYellow(kleur.bold(kleur.black('[image]'))),
+				maskResponse.url,
+			)
 			return c.newResponse(maskResponse.body, {
 				status: maskResponse.status as StatusCode,
 				headers: Object.fromEntries(maskResponse.headers.entries()),
@@ -209,6 +260,19 @@ app.all('*', async (c) => {
 						console.log(kleur.bold(kleur.yellow(`[${attr}]`)), value, newValue)
 					}
 				},
+				comments: (comment) => {
+					comment.remove()
+				},
+				text: (txt) => {
+					let newText = txt.text.replaceAll(
+						`${maskedURL.protocol}//${maskedURL.hostname}`,
+						`${requestURL.protocol}//${requestURL.host}`,
+					)
+					newText = newText.replaceAll(maskedURL.hostname, requestURL.hostname)
+					if (newText !== txt.text) {
+						txt.replace(newText, { html: false })
+					}
+				},
 			})
 			.on('img', {
 				element: (el) => {
@@ -219,21 +283,42 @@ app.all('*', async (c) => {
 						'data-srcset',
 					] as const) {
 						const value = el.getAttribute(attr)
-						if (!value?.includes(maskedURL.hostname)) continue
+						if (!value) continue
 
-						let newValue = value
+						if (attr.endsWith('srcset')) {
+							// Handle srcset format: "url size, url size, ..."
+							const newSrcSet = value
+								.split(',')
+								.map((src) => {
+									const [url, ...sizeParts] = src.trim().split(' ')
+									const size = sizeParts.join(' ')
 
-						if (attr === 'srcset') {
-							newValue = value.replaceAll(
-								`${maskedURL.protocol}//${maskedURL.hostname}`,
-								`${requestURL.protocol}//${requestURL.host}`,
-							)
+									// Decode the URL if it's encoded
+									const decodedUrl = decodeURIComponent(url)
+
+									if (!decodedUrl.includes(maskedURL.hostname)) {
+										return `${decodedUrl} ${size}`.trim()
+									}
+
+									// Transform the URL
+									const newUrl = transformUrl(decodedUrl, maskedURL, requestURL)
+									return `${newUrl} ${size}`.trim()
+								})
+								.join(', ')
+
+							el.setAttribute(attr, newSrcSet)
+							console.log(kleur.magenta('[srcset]'), 'transformed:', newSrcSet)
 						} else {
-							newValue = transformUrl(value, maskedURL, requestURL)
-						}
-
-						if (newValue !== value) {
-							el.setAttribute(attr, newValue)
+							// Handle regular src attributes
+							const decodedValue = decodeURIComponent(value)
+							if (decodedValue.includes(maskedURL.hostname)) {
+								const newValue = transformUrl(
+									decodedValue,
+									maskedURL,
+									requestURL,
+								)
+								el.setAttribute(attr, newValue)
+							}
 						}
 					}
 				},
@@ -358,9 +443,9 @@ app.all('*', async (c) => {
 
 			.transform(c.html(html))
 	} catch (error) {
-		console.error('Proxy error:', error)
+		console.error(`Error processing request: ${c.req.url}`, error)
 		return c.text(
-			`Failed to fetch content: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			`Failed to process request: ${error instanceof Error ? error.message : 'Unknown error'}`,
 			502,
 		)
 	}
