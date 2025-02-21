@@ -4,12 +4,12 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "domain-mask",
+	"name": "yds-domain-mask",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-02-14",
 	"route": {
 		"custom_domain": true,
-		"pattern": "*.yellowdumpsterservice.com/*"
+		"pattern": "yellowdumpsterservice.com"
 	},
 	"observability": {
 		"enabled": true
