@@ -1,8 +1,4 @@
-import type {
-	Element,
-	HTMLRewriterElementContentHandlers,
-} from '@cloudflare/workers-types'
-import type { Context } from 'hono'
+import type { HTMLRewriterElementContentHandlers } from '@cloudflare/workers-types'
 import { createFactory } from 'hono/factory'
 
 export const factory = createFactory<{
