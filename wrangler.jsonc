@@ -7,6 +7,10 @@
 	"name": "domain-mask",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-02-14",
+	"route": {
+		"custom_domain": true,
+		"pattern": "*.yellowdumpsterservice.com/*"
+	},
 	"observability": {
 		"enabled": true
 	},
