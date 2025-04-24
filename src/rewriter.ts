@@ -1,5 +1,6 @@
-import { HTMLRewriter } from '@cloudflare/workers-types/experimental'
-import kleur from 'kleur'
+import { transformUrl } from './transform-url'
+
+const IGNORE_DOMAINS = ['google-analytics.com', 'googletagmanager.com']
 
 /**
  * Uses Cloudflare's HTMLRewriter to rewrite the HTML content
@@ -19,11 +20,9 @@ import kleur from 'kleur'
 export function createRewriter({
 	maskedURL,
 	requestURL,
-	transformUrl,
 }: {
 	maskedURL: URL
 	requestURL: URL
-	transformUrl: (url: string, maskedURL: URL, requestURL: URL) => string
 }) {
 	return new HTMLRewriter()
 		.on('*', {
@@ -41,8 +40,6 @@ export function createRewriter({
 					if (newValue !== value) {
 						el.setAttribute(attr, newValue)
 					}
-
-					console.log(kleur.bold(kleur.yellow(`[${attr}]`)), value, newValue)
 				}
 			},
 			comments: (comment) => {
@@ -92,7 +89,6 @@ export function createRewriter({
 							.join(', ')
 
 						el.setAttribute(attr, newSrcSet)
-						console.log(kleur.magenta('[srcset]'), 'transformed:', newSrcSet)
 					} else {
 						// Handle regular src attributes
 						const decodedValue = decodeURIComponent(value)
@@ -145,16 +141,26 @@ export function createRewriter({
 
 		.on('script', {
 			element: (el) => {
-				const src = el.getAttribute('src')
-				if (src?.includes(maskedURL.hostname)) {
-					const newValue = transformUrl(src, maskedURL, requestURL)
-					if (newValue !== src) {
-						el.setAttribute('src', newValue)
+				for (const attr of ['src', 'srcset']) {
+					const value = el.getAttribute(attr)
+					if (!value) continue
+
+					if (IGNORE_DOMAINS.some((domain) => value.includes(domain))) {
+						el.remove()
+						return
+					}
+
+					// Existing src transformation logic
+					if (value.includes(maskedURL.hostname)) {
+						const newValue = transformUrl(value, maskedURL, requestURL)
+						if (newValue !== value) {
+							el.setAttribute(attr, newValue)
+						}
 					}
 				}
 			},
 			text: (txt) => {
-				const maskedPattern = maskedURL.hostname.replace(/\./g, '\\.')
+				const maskedPattern = maskedURL.hostname.replace(/\\./g, '\\\\.')
 
 				// Patterns to match URLs with and without trailing slash
 				const patterns = [
@@ -179,12 +185,20 @@ export function createRewriter({
 
 				if (newText !== txt.text) {
 					txt.replace(newText, { html: true })
-					console.log('[script text] ', newText)
 				}
 			},
 		})
 		.on('link', {
 			element: (el) => {
+				// remove the analytics prefetch links
+				for (const attr of ['href', 'rel']) {
+					const value = el.getAttribute(attr)
+					if (IGNORE_DOMAINS.some((domain) => value?.includes(domain))) {
+						el.remove()
+						return
+					}
+				}
+
 				// Handle canonical URLs and other link tags
 				const rel = el.getAttribute('rel')
 				if (rel === 'canonical') {
@@ -193,7 +207,6 @@ export function createRewriter({
 				const href = el.getAttribute('href')
 				if (href?.includes(maskedURL.hostname)) {
 					const decoded = decodeURIComponent(href)
-					console.log(kleur.cyan('decoded URL'), decoded)
 					el.setAttribute(
 						'href',
 						decoded.replaceAll(

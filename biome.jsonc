@@ -9,9 +9,10 @@
 			".wrangler",
 			".netlify",
 			".astro",
-			".vscode"
+			".vscode",
+			"env.d.ts"
 		],
-		"include": ["**/*[.js,.jsx,.ts,.tsx,.astro,.css,.json,.jsonc]"]
+		"include": ["**/*[.js,.jsx,.ts,.tsx,.css,.json,.jsonc]"]
 	},
 	"formatter": {
 		"enabled": true,

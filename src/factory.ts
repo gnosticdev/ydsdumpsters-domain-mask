@@ -16,6 +16,8 @@ export const routeFactory = createFactory<{
 	Bindings: CloudflareBindings
 	Variables: {
 		attributeRewriter: HTMLRewriterElementContentHandlers
+		maskedURL: URL
+		requestURL: URL
 	}
 }>({
 	initApp: (app) => {
@@ -28,6 +30,7 @@ export const routeFactory = createFactory<{
 			}),
 			prettyJSON(),
 			(c, next) => {
+				// skip caching in development
 				if (c.env.ENVIRONMENT === 'development') {
 					return next()
 				}
@@ -38,6 +41,24 @@ export const routeFactory = createFactory<{
 					cacheControl: 'public, max-age=3600',
 				})(c, next)
 			},
+			(c, next) => {
+				const requestURL = new URL(c.req.url)
+				const maskedURL = new URL(c.env.MASK_DOMAIN)
+				maskedURL.pathname = requestURL.pathname
+				maskedURL.search = requestURL.search
+				c.set('maskedURL', maskedURL)
+				c.set('requestURL', requestURL)
+				return next()
+			},
 		)
+
+		app.onError((err, c) => {
+			console.error(err)
+			return c.text('Woops - something went wrong', 500)
+		})
+		app.notFound((c) => {
+			console.error('[Route] Not found', c.req.url)
+			return c.text('[Route] Not found', 404)
+		})
 	},
 })

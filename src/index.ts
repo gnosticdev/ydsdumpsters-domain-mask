@@ -1,43 +1,12 @@
 import type { StatusCode } from 'hono/utils/http-status'
-import kleur from 'kleur'
 import { routeFactory } from './factory'
+import { headersMiddleware } from './middleware'
 import { createRewriter } from './rewriter'
 import { transformUrl } from './transform-url'
 
 const app = routeFactory.createApp()
 
-app.use(
-	'*',
-	// Add SEO headers to prevent indexing and specify canonical URL
-	async (c, next) => {
-		await next()
-		const response = c.res
-		const headers = response.headers
-
-		// Prevent search engines from indexing the masked domain
-		headers.set('X-Robots-Tag', 'noindex, nofollow')
-
-		// Add Link header for canonical URL if it's an HTML response
-		const contentType = headers.get('content-type')
-		if (contentType?.includes('text/html')) {
-			const maskedURL = new URL(c.env.MASK_DOMAIN)
-			maskedURL.pathname = new URL(c.req.url).pathname
-			maskedURL.search = new URL(c.req.url).search
-			headers.set('Link', `<${maskedURL.toString()}>; rel="canonical"`)
-		}
-
-		return response
-	},
-)
-
-app.onError((err, c) => {
-	console.error(err)
-	return c.text('Woops - something went wrong', 500)
-})
-app.notFound((c) => {
-	console.error('not found', c.req.url)
-	return c.text('Not found', 404)
-})
+app.use('*', headersMiddleware)
 
 /**
  * Set the robots.txt file to block all crawlers
@@ -55,34 +24,28 @@ app.get('/robots.txt', (c) => {
  * Handle all requests
  */
 app.all('*', async (c) => {
-	const requestURL = new URL(c.req.url)
+	const requestURL = c.get('requestURL')
+	const maskedURL = c.get('maskedURL')
 
-	console.log('request from ', requestURL.href)
-	if (!c.env.ALLOWED_DOMAINS.includes(requestURL.hostname as never)) {
-		return c.text('Not allowed', 403)
-	}
+	console.log(`request from ${requestURL.href}`)
+	// if (!c.env.ALLOWED_DOMAINS.includes(requestURL.hostname as never)) {
+	// 	return c.text('Not allowed', 403)
+	// }
 
 	/**
 	 * The url we are masking to
 	 */
-	const maskedURL = new URL(c.env.MASK_DOMAIN)
-	maskedURL.pathname = requestURL.pathname
-	maskedURL.search = requestURL.search
 
 	try {
 		// Get the request body if it exists
 		let body: BodyInit | null = null
+
 		if (['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
 			body = await c.req.raw.clone().arrayBuffer()
 		}
 
 		// Forward all original headers except host
-		const headers = new Headers()
-		for (const [key, value] of c.req.raw.headers.entries()) {
-			if (key.toLowerCase() !== 'host') {
-				headers.set(key, value)
-			}
-		}
+		const headers = new Headers(c.req.raw.headers)
 
 		// Set the correct host and other required headers
 		headers.set('Host', maskedURL.host)
@@ -174,10 +137,6 @@ app.all('*', async (c) => {
 		}
 
 		if (contentType?.includes('image/')) {
-			console.log(
-				kleur.bgYellow(kleur.bold(kleur.black('[image]'))),
-				maskResponse.url,
-			)
 			return c.newResponse(maskResponse.body, {
 				status: maskResponse.status as StatusCode,
 				headers: Object.fromEntries(maskResponse.headers.entries()),
@@ -194,12 +153,11 @@ app.all('*', async (c) => {
 
 		const html = await maskResponse.text()
 
-		console.log('response from maskUrl', maskResponse.status)
+		console.log(`response from ${maskedURL.href}: ${maskResponse.status}`)
 
 		return createRewriter({
 			maskedURL,
 			requestURL,
-			transformUrl,
 		}).transform(c.html(html))
 	} catch (error) {
 		console.error(`Error processing request: ${c.req.url}`, error)

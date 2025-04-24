@@ -6,7 +6,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "yds-domain-mask",
 	"main": "src/index.ts",
-	"compatibility_date": "2025-02-14",
+	"compatibility_date": "2025-04-24",
 	"route": {
 		"custom_domain": true,
 		"pattern": "yellowdumpsterservice.com"
@@ -41,6 +41,11 @@
 	},
 	"env": {
 		"development": {
+			// this route setting is used by miniflare to run the worker locally, so if we dont set it then everything will come from the production route
+			"route": {
+				"custom_domain": false,
+				"pattern": "localhost:8787"
+			},
 			"vars": {
 				"ALLOWED_DOMAINS": ["localhost"],
 				"MASK_DOMAIN": "https://www.rentyellowdumpsters.com",

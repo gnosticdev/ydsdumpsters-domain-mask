@@ -1,5 +1,3 @@
-import kleur from 'kleur'
-
 /**
  * Transform the URL to the request URL
  * @param originalUrl - The original URL
@@ -22,10 +20,6 @@ export function transformUrl(
 		}
 
 		// Convert to absolute URL
-		console.log(
-			kleur.bgGreen(kleur.bold(kleur.blue('transforming originalUrl'))),
-			originalUrl,
-		)
 		const absoluteUrl = originalUrl.startsWith('/')
 			? `${maskedURL.protocol}://${maskedURL.hostname}${originalUrl}`
 			: new URL(originalUrl).toString()
