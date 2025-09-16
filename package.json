@@ -1,9 +1,9 @@
 {
 	"name": "domain-mask",
 	"scripts": {
-		"dev": "bun run typegen && wrangler dev --env development",
+		"dev": "bun run typegen --env development && wrangler dev --env development",
 		"deploy": "wrangler deploy --minify",
-		"typegen": "wrangler types --env-interface CloudflareBindings"
+		"typegen": "wrangler types --path env.d.ts"
 	},
 	"dependencies": {
 		"hono": "^4.7.2",
@@ -11,6 +11,6 @@
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20250214.0",
-		"wrangler": "^3.109.2"
+		"wrangler": "^4.13.1"
 	}
 }

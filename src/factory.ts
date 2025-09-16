@@ -4,7 +4,6 @@ import { cors } from 'hono/cors'
 import { createFactory } from 'hono/factory'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
-import kleur from 'kleur'
 
 /**
  * Sets the base app with the following middleware:
@@ -17,6 +16,8 @@ export const routeFactory = createFactory<{
 	Bindings: CloudflareBindings
 	Variables: {
 		attributeRewriter: HTMLRewriterElementContentHandlers
+		maskedURL: URL
+		requestURL: URL
 	}
 }>({
 	initApp: (app) => {
@@ -29,8 +30,8 @@ export const routeFactory = createFactory<{
 			}),
 			prettyJSON(),
 			(c, next) => {
+				// skip caching in development
 				if (c.env.ENVIRONMENT === 'development') {
-					console.log(kleur.bgGreen(kleur.black('development: skipping cache')))
 					return next()
 				}
 
@@ -40,6 +41,15 @@ export const routeFactory = createFactory<{
 					cacheControl: 'public, max-age=3600',
 				})(c, next)
 			},
+			(c, next) => {
+				const requestURL = new URL(c.req.url)
+				const maskedURL = new URL(c.env.MASK_DOMAIN)
+				maskedURL.pathname = requestURL.pathname
+				maskedURL.search = requestURL.search
+				c.set('maskedURL', maskedURL)
+				c.set('requestURL', requestURL)
+				return next()
+			},
 		)
 
 		app.onError((err, c) => {
@@ -47,10 +57,8 @@ export const routeFactory = createFactory<{
 			return c.text('Woops - something went wrong', 500)
 		})
 		app.notFound((c) => {
-			console.error('not found', c.req.url)
-			return c.text('Not found', 404)
+			console.error('[Route] Not found', c.req.url)
+			return c.text('[Route] Not found', 404)
 		})
-
-		return app
 	},
 })
