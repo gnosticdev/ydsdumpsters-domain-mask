@@ -4,12 +4,12 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "yds-domain-mask",
+	"name": "ydsdumpsters-domain-mask",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-09-16",
 	"route": {
 		"custom_domain": true,
-		"pattern": "yellowdumpsterservice.com"
+		"pattern": "ydsdumpsters.com"
 	},
 	"observability": {
 		"enabled": true
@@ -35,7 +35,7 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
 	"vars": {
-		"ALLOWED_DOMAINS": ["yellowdumpsterservice.com"],
+		"ALLOWED_DOMAINS": ["ydsdumpsters.com"],
 		"MASK_DOMAIN": "https://www.rentyellowdumpsters.com",
 		"ENVIRONMENT": "production"
 	},
