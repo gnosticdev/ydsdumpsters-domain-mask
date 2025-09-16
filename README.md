@@ -1,5 +1,7 @@
 # Cloudflare Domain Masking Proxy
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](<https://deploy.workers.cloudflare.com/?url=https://github.com/gnostiddev/domain-mask>)
+
 This is a simple way to mask a domain by proxying requests to a different domain, without changing the URL.
 
 The main goal is to be able to use a separate domain for email addresses, or a bunch of different domains, but still have those point to the main site. However, with redirects, if the email domain were to be blacklisted, it could hurt the main site in both email and SEO. By using a masking proxy, you go to `https;//my-masked-domain.com` and it would show all the same content as `https;//my-main-domain.com` but the URL would remain `https;//my-masked-domain.com`, and there would be no trace of the main domain in the request headers or source code.
