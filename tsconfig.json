@@ -3,13 +3,24 @@
 		"target": "ESNext",
 		"module": "ESNext",
 		"moduleResolution": "Bundler",
+		"moduleDetection": "force",
+		"lib": ["ESNext"],
 		"strict": true,
 		"skipLibCheck": true,
-		"skipDefaultLibCheck": true,
+		"isolatedModules": true,
+		"resolveJsonModule": true,
+		"allowSyntheticDefaultImports": true,
+		"allowJs": true,
 		"strictNullChecks": true,
-		"lib": ["ESNext"],
-		"jsx": "react-jsx",
-		"jsxImportSource": "hono/jsx"
+		"noEmit": true,
+		"noUncheckedIndexedAccess": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"verbatimModuleSyntax": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["src/*"]
+		}
 	},
-	"include": ["./src/**/*.ts", "./*.ts", "./env.d.ts"]
+	"exclude": ["node_modules", "dist"]
 }

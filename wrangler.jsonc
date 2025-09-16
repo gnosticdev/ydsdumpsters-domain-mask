@@ -4,12 +4,12 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "yds-domain-mask",
+	"name": "example-domain-mask", // change this to the name of your worker
 	"main": "src/index.ts",
-	"compatibility_date": "2025-04-24",
+	"compatibility_date": "2025-09-16",
 	"route": {
 		"custom_domain": true,
-		"pattern": "yellowdumpsterservice.com"
+		"pattern": "example.com" // change this to the domain you want to mask
 	},
 	"observability": {
 		"enabled": true
@@ -35,8 +35,8 @@
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
 	"vars": {
-		"ALLOWED_DOMAINS": ["yellowdumpsterservice.com"],
-		"MASK_DOMAIN": "https://www.rentyellowdumpsters.com",
+		"ALLOWED_DOMAINS": ["example.com"], // change this to the domains you want to allow
+		"MASK_DOMAIN": "https://www.example-mask.com", // change this to the domain you want to mask
 		"ENVIRONMENT": "production"
 	},
 	"env": {
@@ -44,11 +44,11 @@
 			// this route setting is used by miniflare to run the worker locally, so if we dont set it then everything will come from the production route
 			"route": {
 				"custom_domain": false,
-				"pattern": "localhost:8787"
+				"pattern": "localhost:8787" // keep for local development
 			},
 			"vars": {
-				"ALLOWED_DOMAINS": ["localhost"],
-				"MASK_DOMAIN": "https://www.rentyellowdumpsters.com",
+				"ALLOWED_DOMAINS": ["localhost"], // keep for local development
+				"MASK_DOMAIN": "https://www.example-mask.com", // change this to the domain you want to mask
 				"ENVIRONMENT": "development"
 			}
 		}

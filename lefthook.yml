@@ -1,0 +1,16 @@
+#   Refer for explanation to following link:
+#   https://lefthook.dev/configuration/
+
+assert_lefthook_installed: true
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: bun run typecheck
+
+pre-commit:
+  parallel: true
+  jobs:
+    - run: bun biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      glob: '*.{js,ts,jsx,tsx,json,jsonc}'
+      stage_fixed: true

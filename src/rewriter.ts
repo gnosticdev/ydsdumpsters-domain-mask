@@ -76,7 +76,7 @@ export function createRewriter({
 								const size = sizeParts.join(' ')
 
 								// Decode the URL if it's encoded
-								const decodedUrl = decodeURIComponent(url)
+								const decodedUrl = decodeURIComponent(url ?? '')
 
 								if (!decodedUrl.includes(maskedURL.hostname)) {
 									return `${decodedUrl} ${size}`.trim()

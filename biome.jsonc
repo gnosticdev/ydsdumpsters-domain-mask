@@ -1,18 +1,19 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
 
 	"files": {
-		"ignore": [
-			"node_modules",
-			"**/_![__tests__]",
-			"dist",
-			".wrangler",
-			".netlify",
-			".astro",
-			".vscode",
-			"env.d.ts"
-		],
-		"include": ["**/*[.js,.jsx,.ts,.tsx,.css,.json,.jsonc]"]
+		"includes": [
+			"**",
+			"!**/dist",
+			"!**/.wrangler",
+			"!**/env.d.ts",
+			"**/*.ts",
+			"**/*.tsx",
+			"**/*.js",
+			"**/*.jsx",
+			"**/*.json",
+			"**/*.jsonc"
+		]
 	},
 	"formatter": {
 		"enabled": true,
@@ -31,7 +32,7 @@
 			"allowComments": true,
 			"allowTrailingCommas": false
 		},
-		"assists": {
+		"assist": {
 			"enabled": true
 		}
 	},
@@ -57,11 +58,9 @@
 			},
 			"correctness": { "useJsxKeyInIterable": "off" }
 		},
-		"ignore": ["./env.d.ts"]
+		"includes": ["**", "!env.d.ts"]
 	},
-	"organizeImports": {
-		"enabled": true
-	},
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
 	"css": {
 		"formatter": {
 			"enabled": true
@@ -69,13 +68,13 @@
 	},
 	"overrides": [
 		{
-			"include": ["./**/*.js"],
+			"includes": ["**/*.js"],
 			"linter": {
 				"enabled": false
 			}
 		},
 		{
-			"include": ["./**/*.astro"],
+			"includes": ["**/*.astro"],
 			"formatter": {
 				"indentWidth": 2,
 				"indentStyle": "space",
@@ -95,7 +94,7 @@
 			}
 		},
 		{
-			"include": ["./**/*.tsx"],
+			"includes": ["**/*.tsx"],
 			"formatter": {
 				"indentWidth": 2,
 				"indentStyle": "space",

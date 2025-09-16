@@ -13,7 +13,7 @@ import { prettyJSON } from 'hono/pretty-json'
  * - cache
  */
 export const routeFactory = createFactory<{
-	Bindings: CloudflareBindings
+	Bindings: Env
 	Variables: {
 		attributeRewriter: HTMLRewriterElementContentHandlers
 		maskedURL: URL
@@ -25,7 +25,7 @@ export const routeFactory = createFactory<{
 			'*',
 			logger(),
 			cors({
-				origin: (_origin, c: Context<{ Bindings: CloudflareBindings }>) =>
+				origin: (_origin, c: Context<{ Bindings: Env }>) =>
 					c.env.ALLOWED_DOMAINS.includes(_origin as never) ? _origin : null,
 			}),
 			prettyJSON(),
